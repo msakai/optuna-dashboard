@@ -8,7 +8,6 @@ from typing import Tuple
 
 from optuna.distributions import BaseDistribution
 from optuna.trial import FrozenTrial
-from optuna.trial import TrialState
 
 
 SearchSpaceSetT = Set[Tuple[str, BaseDistribution]]
@@ -17,8 +16,6 @@ SearchSpaceListT = List[Tuple[str, BaseDistribution]]
 #  In-memory cache
 cached_extra_study_property_cache_lock = threading.Lock()
 cached_extra_study_property_cache: Dict[int, "_CachedExtraStudyProperty"] = {}
-
-states_of_interest = [TrialState.COMPLETE, TrialState.PRUNED]
 
 
 def get_cached_extra_study_property(
@@ -69,16 +66,10 @@ class _CachedExtraStudyProperty:
         return union
 
     def update(self, trials: List[FrozenTrial]) -> None:
-        next_cursor = self._cursor
-        for trial in reversed(trials):
-            if self._cursor > trial.number:
-                break
-
+        while self._cursor + 1 < len(trials):
+            trial = trials[self._cursor + 1]
             if not trial.state.is_finished():
-                next_cursor = trial.number
-
-            if trial.state not in states_of_interest:
-                continue
+                break
 
             if not self.has_intermediate_values and len(trial.intermediate_values) > 0:
                 self.has_intermediate_values = True
@@ -94,4 +85,4 @@ class _CachedExtraStudyProperty:
             current_user_attrs = set(n for n in trial.user_attrs.keys())
             self._union_user_attrs = self._union_user_attrs.union(current_user_attrs)
 
-        self._cursor = next_cursor
+            self._cursor += 1
